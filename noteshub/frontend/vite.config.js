@@ -17,7 +17,8 @@ export default defineConfig({
   preview: {
     port: process.env.PORT || 4173,
     host: '0.0.0.0',
-    strictPort: true
+    strictPort: true,
+    allowedHosts: ['b2c-i47b.onrender.com']
   },
   build: {
     outDir: 'dist',
