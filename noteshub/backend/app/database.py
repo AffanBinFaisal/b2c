@@ -2,6 +2,8 @@ from datetime import datetime
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import ASCENDING, TEXT
 from app.config import settings
+import ssl
+import certifi
 
 client = None
 database = None
@@ -10,16 +12,39 @@ database = None
 async def connect_to_mongo():
     """Connect to MongoDB"""
     global client, database
-    client = AsyncIOMotorClient(settings.MONGODB_URL)
+    
+    # Configure TLS/SSL settings for MongoDB Atlas with certifi
+    tls_config = {
+        'tls': True,
+        'tlsAllowInvalidCertificates': False,
+        'tlsAllowInvalidHostnames': False,
+        'tlsCAFile': certifi.where(),  # Use certifi's CA bundle
+    }
+    
+    # Create client with TLS configuration
+    client = AsyncIOMotorClient(
+        settings.MONGODB_URL,
+        **tls_config,
+        serverSelectionTimeoutMS=30000,
+        connectTimeoutMS=30000,
+        socketTimeoutMS=30000
+    )
+    
     database = client[settings.DATABASE_NAME]
+    
+    # Test connection
+    try:
+        await client.admin.command('ping')
+        print(f"Successfully connected to MongoDB: {settings.DATABASE_NAME}")
+    except Exception as e:
+        print(f"Failed to connect to MongoDB: {e}")
+        raise
     
     # Create indexes
     await create_indexes()
     
     # Initialize predefined tags
     await initialize_predefined_tags()
-    
-    print(f"Connected to MongoDB: {settings.DATABASE_NAME}")
 
 
 async def close_mongo_connection():
