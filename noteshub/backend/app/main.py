@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.database import connect_to_mongo, close_mongo_connection
 from app.routes import auth, collections, notes, tags, search, analytics
+from app.config import settings
 
 
 @asynccontextmanager
@@ -24,9 +25,21 @@ app = FastAPI(
 )
 
 # Configure CORS - Must be added before routes
+# Allow both local development and production frontend URLs
+allowed_origins = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://b2c-i47b.onrender.com",  # Production frontend
+]
+
+# Add production frontend URL if configured
+if settings.FRONTEND_URL and settings.FRONTEND_URL not in allowed_origins:
+    allowed_origins.append(settings.FRONTEND_URL)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
