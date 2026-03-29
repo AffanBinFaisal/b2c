@@ -43,6 +43,7 @@ class UserResponse(BaseModel):
     createdAt: datetime
     lastLoginAt: Optional[datetime] = None
     preferences: dict
+    emailVerified: Optional[bool] = True
 
     class Config:
         populate_by_name = True
@@ -52,6 +53,13 @@ class UserUpdate(BaseModel):
     """User update schema"""
     name: Optional[str] = None
     preferences: Optional[dict] = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v):
+        if v is not None and len(v) < 2:
+            raise ValueError("Name must be at least 2 characters")
+        return v
 
 
 class PasswordChange(BaseModel):
@@ -80,3 +88,36 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     """Token data schema"""
     user_id: Optional[str] = None
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    newPassword: str
+
+    @field_validator("newPassword")
+    @classmethod
+    def validate_password(cls, v):
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        if not re.search(r"\d", v):
+            raise ValueError("Password must contain at least one number")
+        if not re.search(r'[!@#$%^&*(),.?":{}|<>]', v):
+            raise ValueError("Password must contain at least one special character")
+        return v
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
+
+
+class RecoverAccountRequest(BaseModel):
+    email: EmailStr
+    password: str

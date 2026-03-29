@@ -13,6 +13,7 @@ export const useNotes = () => {
 
 export const NotesProvider = ({ children }) => {
   const [notes, setNotes] = useState([])
+  const [notesTotal, setNotesTotal] = useState(0)
   const [collections, setCollections] = useState([])
   const [tags, setTags] = useState([])
   const [loading, setLoading] = useState(false)
@@ -23,8 +24,12 @@ export const NotesProvider = ({ children }) => {
       setLoading(true)
       setError(null)
       const response = await notesAPI.getAll(params)
-      setNotes(response.data)
-      return { success: true, data: response.data }
+      const payload = response.data
+      const list = Array.isArray(payload) ? payload : payload.items ?? []
+      const total = typeof payload.total === 'number' ? payload.total : list.length
+      setNotes(list)
+      setNotesTotal(total)
+      return { success: true, data: list, total }
     } catch (err) {
       const message = err.response?.data?.detail || 'Failed to fetch notes'
       setError(message)
@@ -171,6 +176,7 @@ export const NotesProvider = ({ children }) => {
 
   const value = {
     notes,
+    notesTotal,
     collections,
     tags,
     loading,

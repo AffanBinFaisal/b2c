@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from typing import Optional
+import bcrypt
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
@@ -10,9 +11,7 @@ from app.config import settings
 from app.database import get_database
 from app.schemas.user import TokenData
 
-# Password hashing
-# NOTE: bcrypt backend compatibility issues can cause runtime 500s on registration.
-# Use pbkdf2_sha256 for stable hashing without external backend constraints.
+# New passwords use pbkdf2_sha256. Legacy bcrypt hashes are verified via bcrypt.checkpw (avoids passlib/bcrypt backend quirks).
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 # HTTP Bearer token
@@ -21,7 +20,21 @@ security = HTTPBearer()
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash"""
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        if pwd_context.verify(plain_password, hashed_password):
+            return True
+    except (ValueError, TypeError):
+        pass
+    h = hashed_password or ""
+    if h.startswith("$2a$") or h.startswith("$2b$") or h.startswith("$2y$"):
+        try:
+            return bcrypt.checkpw(
+                plain_password.encode("utf-8"),
+                hashed_password.encode("utf-8"),
+            )
+        except (ValueError, TypeError):
+            return False
+    return False
 
 
 def get_password_hash(password: str) -> str:

@@ -84,6 +84,54 @@ async def get_collections(user_id: str = Depends(get_current_user_id)):
     return result
 
 
+@router.get("/{collection_id}/delete-impact")
+async def get_delete_impact(
+    collection_id: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Counts for delete confirmation: hard-deleted notes vs unlinked from collection."""
+    db = get_database()
+
+    if not ObjectId.is_valid(collection_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid collection ID",
+        )
+
+    cid = ObjectId(collection_id)
+    owner = ObjectId(user_id)
+
+    collection = await db.collections.find_one({"_id": cid, "ownerId": owner})
+    if not collection:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Collection not found",
+        )
+
+    hard_delete = await db.notes.count_documents(
+        {
+            "ownerId": owner,
+            "collectionIds": cid,
+            "$expr": {"$eq": [{"$size": "$collectionIds"}, 1]},
+            "deletedAt": None,
+        }
+    )
+    unlink = await db.notes.count_documents(
+        {
+            "ownerId": owner,
+            "collectionIds": cid,
+            "$expr": {"$gt": [{"$size": "$collectionIds"}, 1]},
+            "deletedAt": None,
+        }
+    )
+
+    return {
+        "hardDeleteCount": hard_delete,
+        "unlinkFromCollectionCount": unlink,
+        "totalNotesInCollection": hard_delete + unlink,
+    }
+
+
 @router.get("/{collection_id}", response_model=CollectionResponse)
 async def get_collection(
     collection_id: str,

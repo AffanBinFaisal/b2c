@@ -1,18 +1,38 @@
+import asyncio
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.database import connect_to_mongo, close_mongo_connection
 from app.routes import auth, collections, notes, tags, search, analytics
 from app.config import settings
+from app.utils.purge import purge_expired_soft_deletes
+
+
+async def _purge_loop():
+    while True:
+        await asyncio.sleep(3600)
+        try:
+            await purge_expired_soft_deletes()
+        except Exception as e:
+            print(f"Scheduled purge failed: {e}")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
-    # Startup
     await connect_to_mongo()
+    try:
+        await purge_expired_soft_deletes()
+    except Exception as e:
+        print(f"Initial purge failed: {e}")
+    purge_task = asyncio.create_task(_purge_loop())
     yield
-    # Shutdown
+    purge_task.cancel()
+    try:
+        await purge_task
+    except asyncio.CancelledError:
+        pass
     await close_mongo_connection()
 
 

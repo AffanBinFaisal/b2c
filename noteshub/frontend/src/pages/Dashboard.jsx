@@ -9,6 +9,7 @@ const Dashboard = () => {
   const [pinnedNotes, setPinnedNotes] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     loadDashboard()
@@ -25,7 +26,9 @@ const Dashboard = () => {
       
       // Fetch pinned notes
       const pinnedResponse = await notesAPI.getAll({ pinned_only: true, limit: 6 })
-      setPinnedNotes(Array.isArray(pinnedResponse.data) ? pinnedResponse.data : [])
+      const pd = pinnedResponse.data
+      const pinnedList = Array.isArray(pd) ? pd : pd?.items ?? []
+      setPinnedNotes(pinnedList)
       
       // Load collections and tags for sidebar
       await fetchCollections()
@@ -36,6 +39,25 @@ const Dashboard = () => {
       setError(message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleExportData = async () => {
+    setExporting(true)
+    try {
+      const response = await analyticsAPI.exportData()
+      const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `noteshub-export-${new Date().toISOString().split('T')[0]}.json`
+      a.click()
+      window.URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('Export failed:', e)
+      setError(e.response?.data?.detail || 'Failed to export data.')
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -50,17 +72,27 @@ const Dashboard = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
           <p className="text-gray-600 mt-1">Welcome back! Here's your knowledge overview.</p>
         </div>
-        <Link to="/notes/new" className="btn btn-primary">
-          <svg className="w-5 h-5 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          New Note
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleExportData}
+            disabled={exporting}
+            className="btn btn-secondary"
+          >
+            {exporting ? 'Exporting…' : 'Export data'}
+          </button>
+          <Link to="/notes/new" className="btn btn-primary">
+            <svg className="w-5 h-5 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            New Note
+          </Link>
+        </div>
       </div>
 
       {error && (

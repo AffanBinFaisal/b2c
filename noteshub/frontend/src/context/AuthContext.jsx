@@ -69,8 +69,11 @@ export const AuthProvider = ({ children }) => {
   const register = async (name, email, password) => {
     try {
       setError(null)
-      await authAPI.register({ name, email, password })
-      return await login(email, password)
+      const response = await authAPI.register({ name, email, password })
+      const message =
+        response.data?.message ||
+        'Account created. Check your email to verify before signing in.'
+      return { success: true, message }
     } catch (err) {
       const message = getErrorMessage(err, 'Registration failed')
       setError(message)
@@ -78,7 +81,14 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      if (localStorage.getItem('token')) {
+        await authAPI.logout()
+      }
+    } catch {
+      // still clear client session
+    }
     localStorage.removeItem('token')
     setUser(null)
   }

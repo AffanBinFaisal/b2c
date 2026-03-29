@@ -7,16 +7,18 @@ class SearchRequest(BaseModel):
     query: str = ""
     collectionIds: List[str] = Field(default_factory=list)
     tagIds: List[str] = Field(default_factory=list)
-    logic: Literal["AND", "OR"] = "AND"
+    # Omit to use the authenticated user's preferences.searchLogic (PRD).
+    logic: Optional[Literal["AND", "OR"]] = None
     sortBy: Literal["relevance", "updatedAt"] = "relevance"
     page: int = Field(default=1, ge=1)
-    limit: int = Field(default=20, ge=1, le=100)
+    limit: int = Field(default=20, ge=1, le=20)
 
 
 class SearchResponse(BaseModel):
     """Search response schema"""
     results: List[dict]
     total: int
+    totalMatches: int
     page: int
     limit: int
     totalPages: int

@@ -29,9 +29,12 @@ const Register = () => {
     setLoading(true)
 
     const result = await register(name, email, password)
-    
+
     if (result.success) {
-      navigate('/')
+      navigate('/login', {
+        replace: true,
+        state: { registered: true, message: result.message },
+      })
     } else {
       setError(result.error)
     }

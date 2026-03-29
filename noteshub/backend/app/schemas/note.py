@@ -106,3 +106,30 @@ class NoteListResponse(BaseModel):
 
     class Config:
         populate_by_name = True
+
+
+class NoteListPaginatedResponse(BaseModel):
+    """Paginated note list (20 per page per PRD)."""
+    items: List[NoteListResponse]
+    total: int
+
+
+class NoteTrashItem(BaseModel):
+    """Soft-deleted note in trash (recoverable within retention window)."""
+    id: str = Field(alias="_id")
+    title: str
+    contentPreview: str
+    ownerId: str
+    collectionIds: List[str]
+    tagIds: List[str]
+    isPinned: bool
+    updatedAt: datetime
+    deletedAt: datetime
+
+    class Config:
+        populate_by_name = True
+
+
+class NoteTrashListResponse(BaseModel):
+    items: List[NoteTrashItem]
+    total: int

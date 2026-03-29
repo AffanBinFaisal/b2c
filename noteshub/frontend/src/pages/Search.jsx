@@ -1,11 +1,17 @@
-import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { searchAPI } from '../services/api'
 import { useNotes } from '../context/NotesContext'
+import { useAuth } from '../context/AuthContext'
+import SearchableChecklist from '../components/SearchableChecklist'
+
+const DEBOUNCE_MS = 400
 
 const Search = () => {
+  const { user } = useAuth()
   const { collections, tags, fetchCollections, fetchTags } = useNotes()
-  const [query, setQuery] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [query, setQuery] = useState(() => searchParams.get('q') || '')
   const [filters, setFilters] = useState({
     collectionIds: [],
     tagIds: [],
@@ -16,43 +22,93 @@ const Search = () => {
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
   const [error, setError] = useState('')
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
+
+  const debounceTimerRef = useRef(null)
+
+  const clearDebounceTimer = useCallback(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+      debounceTimerRef.current = null
+    }
+  }, [])
 
   useEffect(() => {
     fetchCollections()
     fetchTags()
-  }, [])
+  }, [fetchCollections, fetchTags])
 
-  const handleSearch = async (e) => {
-    e.preventDefault()
-    setLoading(true)
-    setSearched(true)
-    setError('')
-
-    try {
-      const response = await searchAPI.search({
-        query,
-        ...filters,
-        page: 1,
-        limit: 20,
-      })
-      setResults(response.data.results)
-    } catch (error) {
-      const message = error.response?.data?.detail || 'Search failed. Please try again.'
-      setError(message)
-      setResults([])
-    } finally {
-      setLoading(false)
+  useEffect(() => {
+    const sl = user?.preferences?.searchLogic
+    if (sl === 'AND' || sl === 'OR') {
+      setFilters((prev) => ({ ...prev, logic: sl }))
     }
+  }, [user])
+
+  useEffect(() => {
+    setQuery(searchParams.get('q') ?? '')
+  }, [searchParams])
+
+  const runSearch = useCallback(
+    async (pageNum = 1, queryOverride = undefined) => {
+      const effectiveQuery = queryOverride !== undefined ? queryOverride : query
+      setLoading(true)
+      setSearched(true)
+      setError('')
+
+      try {
+        const response = await searchAPI.search({
+          query: effectiveQuery,
+          ...filters,
+          page: pageNum,
+          limit: 20,
+        })
+        setResults(response.data.results)
+        setTotal(response.data.total)
+        setTotalPages(response.data.totalPages)
+        setPage(pageNum)
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev)
+          if (effectiveQuery.trim()) next.set('q', effectiveQuery.trim())
+          else next.delete('q')
+          return next
+        })
+      } catch (err) {
+        const message = err.response?.data?.detail || 'Search failed. Please try again.'
+        setError(message)
+        setResults([])
+        setTotal(0)
+        setTotalPages(0)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [query, filters, setSearchParams]
+  )
+
+  const handleSearch = (e) => {
+    e.preventDefault()
+    clearDebounceTimer()
+    runSearch(1)
   }
 
-  const toggleFilter = (type, id) => {
-    setFilters((prev) => ({
-      ...prev,
-      [type]: prev[type].includes(id)
-        ? prev[type].filter((item) => item !== id)
-        : [...prev[type], id],
-    }))
-  }
+  const hasSearchCriteria =
+    query.trim().length > 0 || filters.collectionIds.length > 0 || filters.tagIds.length > 0
+
+  useEffect(() => {
+    if (!hasSearchCriteria) {
+      clearDebounceTimer()
+      return
+    }
+    clearDebounceTimer()
+    debounceTimerRef.current = setTimeout(() => {
+      debounceTimerRef.current = null
+      runSearch(1)
+    }, DEBOUNCE_MS)
+    return () => clearDebounceTimer()
+  }, [query, filters, hasSearchCriteria, runSearch, clearDebounceTimer])
 
   return (
     <div className="space-y-6">
@@ -69,53 +125,33 @@ const Search = () => {
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Collections
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {collections.map((collection) => (
-                <button
-                  key={collection._id}
-                  type="button"
-                  onClick={() => toggleFilter('collectionIds', collection._id)}
-                  className={`px-3 py-1 rounded-full text-sm ${
-                    filters.collectionIds.includes(collection._id)
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  {collection.name}
-                </button>
-              ))}
-            </div>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <SearchableChecklist
+            label="Collections"
+            items={collections}
+            value={filters.collectionIds}
+            onChange={(ids) => setFilters((prev) => ({ ...prev, collectionIds: ids }))}
+            searchPlaceholder="Filter collections…"
+            emptyMessage="No collections match."
+            noItemsMessage="No collections yet."
+            idPrefix="search-coll"
+            hint="Optional filter. Leave empty to search all collections."
+          />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tags
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {tags.map((tag) => (
-                <button
-                  key={tag._id}
-                  type="button"
-                  onClick={() => toggleFilter('tagIds', tag._id)}
-                  className={`px-3 py-1 rounded-full text-sm ${
-                    filters.tagIds.includes(tag._id)
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  {tag.name}
-                </button>
-              ))}
-            </div>
-          </div>
+          <SearchableChecklist
+            label="Tags"
+            items={tags}
+            value={filters.tagIds}
+            onChange={(ids) => setFilters((prev) => ({ ...prev, tagIds: ids }))}
+            searchPlaceholder="Filter tags…"
+            emptyMessage="No tags match."
+            noItemsMessage="No tags yet."
+            idPrefix="search-tag"
+            hint="Optional filter. Combine with logic below (AND / OR)."
+          />
         </div>
 
-        <div className="flex items-center space-x-4">
+        <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center space-x-2">
             <label className="text-sm font-medium text-gray-700">Filter Logic:</label>
             <select
@@ -154,42 +190,70 @@ const Search = () => {
             </div>
           )}
           <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            {results.length} result{results.length !== 1 ? 's' : ''} found
+            {total} result{total !== 1 ? 's' : ''} found
+            {totalPages > 1 && (
+              <span className="text-base font-normal text-gray-600 ml-2">
+                (page {page} of {totalPages})
+              </span>
+            )}
           </h2>
 
           {results.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              No notes found matching your search criteria.
-            </div>
+            <div className="text-center py-12 text-gray-500">No notes found matching your search criteria.</div>
           ) : (
-            <div className="space-y-4">
-              {results.map((note) => (
-                <Link
-                  key={note._id}
-                  to={`/notes/${note._id}`}
-                  className="card hover:shadow-lg transition-shadow block"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                        {note.title}
-                      </h3>
-                      <p className="text-gray-600 line-clamp-2 mb-3">
-                        {note.contentPreview}
-                      </p>
-                      <div className="text-sm text-gray-500">
-                        {new Date(note.updatedAt).toLocaleDateString()}
+            <>
+              <div className="space-y-4">
+                {results.map((note) => (
+                  <Link
+                    key={note._id}
+                    to={`/notes/${note._id}`}
+                    className="card hover:shadow-lg transition-shadow block"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">{note.title}</h3>
+                        <p className="text-gray-600 line-clamp-2 mb-3">{note.contentPreview}</p>
+                        <div className="text-sm text-gray-500">
+                          {new Date(note.updatedAt).toLocaleDateString()}
+                        </div>
                       </div>
+                      {note.isPinned && (
+                        <svg className="w-5 h-5 text-yellow-500 ml-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
+                        </svg>
+                      )}
                     </div>
-                    {note.isPinned && (
-                      <svg className="w-5 h-5 text-yellow-500 ml-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
-                      </svg>
-                    )}
-                  </div>
-                </Link>
-              ))}
-            </div>
+                  </Link>
+                ))}
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-4 pt-6">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={page <= 1 || loading}
+                    onClick={() => {
+                      clearDebounceTimer()
+                      runSearch(page - 1)
+                    }}
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={page >= totalPages || loading}
+                    onClick={() => {
+                      clearDebounceTimer()
+                      runSearch(page + 1)
+                    }}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

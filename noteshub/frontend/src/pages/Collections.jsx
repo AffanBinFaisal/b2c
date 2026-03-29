@@ -1,16 +1,46 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useNotes } from '../context/NotesContext'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 const Collections = () => {
   const { collections, fetchCollections, createCollection, updateCollection, deleteCollection } = useNotes()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [name, setName] = useState('')
   const [error, setError] = useState('')
+  const [pendingDelete, setPendingDelete] = useState(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+
+  const closeDeleteDialog = useCallback(() => {
+    if (!deleteLoading) setPendingDelete(null)
+  }, [deleteLoading])
 
   useEffect(() => {
     fetchCollections()
   }, [fetchCollections])
+
+  useEffect(() => {
+    if (searchParams.get('new') !== '1') return
+    setShowCreateModal(true)
+    const next = new URLSearchParams(searchParams)
+    next.delete('new')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
+
+  useEffect(() => {
+    const editId = searchParams.get('edit')
+    if (!editId || !collections.length) return
+    const col = collections.find((c) => c._id === editId)
+    const next = new URLSearchParams(searchParams)
+    next.delete('edit')
+    setSearchParams(next, { replace: true })
+    if (col) {
+      setEditingId(editId)
+      setName(col.name)
+    }
+  }, [collections, searchParams, setSearchParams])
 
   const handleCreate = async (e) => {
     e.preventDefault()
@@ -35,13 +65,21 @@ const Collections = () => {
     }
   }
 
-  const handleDelete = async (id, collectionName, noteCount) => {
-    const message = noteCount > 0
-      ? `Delete "${collectionName}"? This will permanently delete ${noteCount} note(s) that belong only to this collection.`
-      : `Delete "${collectionName}"?`
-    
-    if (window.confirm(message)) {
-      await deleteCollection(id)
+  const handleDeleteRequest = (id, collectionName, noteCount) => {
+    setError('')
+    setPendingDelete({ id, name: collectionName, noteCount })
+  }
+
+  const handleConfirmDeleteCollection = async () => {
+    if (!pendingDelete) return
+    setDeleteLoading(true)
+    const result = await deleteCollection(pendingDelete.id)
+    setDeleteLoading(false)
+    if (result.success) {
+      setPendingDelete(null)
+    } else {
+      setPendingDelete(null)
+      setError(result.error || 'Failed to delete collection.')
     }
   }
 
@@ -112,7 +150,8 @@ const Collections = () => {
                     Rename
                   </button>
                   <button
-                    onClick={() => handleDelete(collection._id, collection.name, collection.noteCount)}
+                    type="button"
+                    onClick={() => handleDeleteRequest(collection._id, collection.name, collection.noteCount)}
                     className="btn btn-danger flex-1 text-sm"
                   >
                     Delete
@@ -163,6 +202,23 @@ const Collections = () => {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        onClose={closeDeleteDialog}
+        onConfirm={handleConfirmDeleteCollection}
+        title="Delete collection?"
+        description={
+          pendingDelete && pendingDelete.noteCount > 0
+            ? `Delete "${pendingDelete.name}"? The collection is removed permanently. Notes that exist only in this collection are hard deleted (gone immediately, not moved to Trash). Notes that also belong to other collections are not deleted—they are only unlinked from this collection.`
+            : pendingDelete
+              ? `Delete "${pendingDelete.name}"? The collection is removed permanently. There are no notes in this collection.`
+              : ''
+        }
+        confirmLabel="Delete collection"
+        cancelLabel="Cancel"
+        loading={deleteLoading}
+      />
     </div>
   )
 }

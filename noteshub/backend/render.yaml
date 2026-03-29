@@ -9,11 +9,33 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
-      - key: MONGODB_URI
+      # Must match app.config Settings field name (MONGODB_URL).
+      - key: MONGODB_URL
         sync: false
+      - key: DATABASE_NAME
+        value: noteshub
       - key: SECRET_KEY
         generateValue: true
       - key: ALGORITHM
         value: HS256
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: 30
+      - key: FRONTEND_URL
+        sync: false
+      - key: ENVIRONMENT
+        value: production
+      # Required for real email (same values as local .env). Without these, mail is skipped.
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: SMTP_USE_TLS
+        value: "true"
+      - key: SMTP_USE_SSL
+        value: "false"

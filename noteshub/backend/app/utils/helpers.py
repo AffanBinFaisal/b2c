@@ -1,5 +1,17 @@
+import re
 from typing import List
 from bson import ObjectId
+
+
+def html_to_plain_text(html: str) -> str:
+    """Strip HTML tags for search indexing and plain previews."""
+    if not html:
+        return ""
+    text = re.sub(r"<script[^>]*>[\s\S]*?</script>", " ", html, flags=re.IGNORECASE)
+    text = re.sub(r"<style[^>]*>[\s\S]*?</style>", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
 
 
 def object_id_list(ids: List[str]) -> List[ObjectId]:
@@ -16,7 +28,8 @@ def str_id_list(ids: List[ObjectId]) -> List[str]:
 
 
 def create_content_preview(content: str, max_length: int = 150) -> str:
-    """Create a preview of content"""
-    if len(content) <= max_length:
-        return content
-    return content[:max_length].rsplit(' ', 1)[0] + '...'
+    """Create a preview of content (strips HTML when present)."""
+    plain = html_to_plain_text(content) if content and "<" in content else (content or "")
+    if len(plain) <= max_length:
+        return plain
+    return plain[:max_length].rsplit(" ", 1)[0] + "..."

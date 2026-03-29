@@ -1,15 +1,27 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { notesAPI } from '../services/api'
 import { useNotes } from '../context/NotesContext'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 const NoteDetail = () => {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { deleteNote, togglePin } = useNotes()
+  const { deleteNote, togglePin, collections, tags, fetchCollections, fetchTags } = useNotes()
   const [note, setNote] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+
+  const closeDeleteDialog = useCallback(() => {
+    if (!deleteLoading) setDeleteOpen(false)
+  }, [deleteLoading])
+
+  useEffect(() => {
+    fetchCollections()
+    fetchTags()
+  }, [fetchCollections, fetchTags])
 
   useEffect(() => {
     loadNote()
@@ -29,14 +41,16 @@ const NoteDetail = () => {
     }
   }
 
-  const handleDelete = async () => {
-    if (window.confirm('Are you sure you want to delete this note?')) {
-      const result = await deleteNote(id)
-      if (result.success) {
-        navigate('/notes')
-      } else {
-        setError(result.error || 'Failed to delete note.')
-      }
+  const handleConfirmDelete = async () => {
+    setDeleteLoading(true)
+    const result = await deleteNote(id)
+    setDeleteLoading(false)
+    if (result.success) {
+      setDeleteOpen(false)
+      navigate('/notes')
+    } else {
+      setDeleteOpen(false)
+      setError(result.error || 'Failed to delete note.')
     }
   }
 
@@ -61,6 +75,11 @@ const NoteDetail = () => {
     return <div className="text-center py-12">{error || 'Note not found'}</div>
   }
 
+  const collectionNames = (note.collectionIds || [])
+    .map((cid) => collections.find((c) => c._id === cid))
+    .filter(Boolean)
+  const tagNames = (note.tagIds || []).map((tid) => tags.find((t) => t._id === tid)).filter(Boolean)
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-6">
@@ -71,6 +90,19 @@ const NoteDetail = () => {
           Back to Notes
         </Link>
       </div>
+
+      {collectionNames.length > 0 && (
+        <nav className="text-sm text-gray-600 mb-4 flex flex-wrap items-center gap-1">
+          {collectionNames.map((c, i) => (
+            <span key={c._id} className="flex items-center gap-1">
+              {i > 0 && <span className="text-gray-400">/</span>}
+              <Link to={`/notes?collection=${c._id}`} className="text-primary-600 hover:underline">
+                {c.name}
+              </Link>
+            </span>
+          ))}
+        </nav>
+      )}
 
       <div className="card">
         {error && (
@@ -89,6 +121,7 @@ const NoteDetail = () => {
           </div>
           <div className="flex space-x-2">
             <button
+              type="button"
               onClick={handleTogglePin}
               className="btn btn-secondary"
               title={note.isPinned ? 'Unpin' : 'Pin'}
@@ -100,7 +133,7 @@ const NoteDetail = () => {
             <Link to={`/notes/${id}/edit`} className="btn btn-secondary">
               Edit
             </Link>
-            <button onClick={handleDelete} className="btn btn-danger">
+            <button type="button" onClick={() => setDeleteOpen(true)} className="btn btn-danger">
               Delete
             </button>
           </div>
@@ -110,7 +143,39 @@ const NoteDetail = () => {
           <p className="whitespace-pre-wrap text-gray-700">{note.content}</p>
         </div>
 
-        <div className="border-t pt-4">
+        <div className="border-t pt-4 space-y-4">
+          {collectionNames.length > 0 && (
+            <div>
+              <span className="font-medium text-gray-700 text-sm">Collections: </span>
+              <span className="flex flex-wrap gap-2 mt-1">
+                {collectionNames.map((c) => (
+                  <Link
+                    key={c._id}
+                    to={`/notes?collection=${c._id}`}
+                    className="inline-flex px-2 py-0.5 rounded bg-primary-50 text-primary-800 text-sm font-medium hover:bg-primary-100"
+                  >
+                    {c.name}
+                  </Link>
+                ))}
+              </span>
+            </div>
+          )}
+          {tagNames.length > 0 && (
+            <div>
+              <span className="font-medium text-gray-700 text-sm">Tags: </span>
+              <span className="flex flex-wrap gap-2 mt-1">
+                {tagNames.map((t) => (
+                  <Link
+                    key={t._id}
+                    to={`/notes?tag=${t._id}`}
+                    className="inline-flex px-2 py-0.5 rounded bg-purple-50 text-purple-800 text-sm font-medium hover:bg-purple-100"
+                  >
+                    {t.name}
+                  </Link>
+                ))}
+              </span>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <span className="font-medium text-gray-700">Created:</span>
@@ -123,6 +188,17 @@ const NoteDetail = () => {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onClose={closeDeleteDialog}
+        onConfirm={handleConfirmDelete}
+        title="Delete this note?"
+        description="This is a soft delete: the note moves to Trash. You can restore it from Trash for up to 30 days. After that, it is permanently removed (hard delete)."
+        confirmLabel="Delete note"
+        cancelLabel="Cancel"
+        loading={deleteLoading}
+      />
     </div>
   )
 }

@@ -1,10 +1,13 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { NavLink, Navigate, useParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { authAPI, analyticsAPI } from '../services/api'
 
+const SETTINGS_SECTIONS = ['profile', 'security', 'data']
+
 const Settings = () => {
+  const { section } = useParams()
   const { user, updateProfile, logout } = useAuth()
-  const [activeTab, setActiveTab] = useState('profile')
   const [name, setName] = useState(user?.name || '')
   const [searchLogic, setSearchLogic] = useState(user?.preferences?.searchLogic || 'AND')
   const [currentPassword, setCurrentPassword] = useState('')
@@ -12,6 +15,22 @@ const Settings = () => {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [message, setMessage] = useState({ type: '', text: '' })
   const [loading, setLoading] = useState(false)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+
+  useEffect(() => {
+    if (!deleteModalOpen) return
+    const onKey = (e) => {
+      if (e.key === 'Escape' && !deleteLoading) setDeleteModalOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [deleteModalOpen, deleteLoading])
 
   const handleUpdateProfile = async (e) => {
     e.preventDefault()
@@ -69,16 +88,32 @@ const Settings = () => {
     }
   }
 
-  const handleDeleteAccount = async () => {
-    if (window.confirm('Are you sure you want to delete your account? This action cannot be undone after 30 days.')) {
-      try {
-        await authAPI.deleteAccount()
-        logout()
-      } catch (error) {
-        setMessage({ type: 'error', text: 'Failed to delete account' })
-      }
+  const confirmDeleteAccount = async () => {
+    setDeleteLoading(true)
+    setMessage({ type: '', text: '' })
+    try {
+      await authAPI.deleteAccount()
+      setDeleteModalOpen(false)
+      logout()
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Failed to delete account' })
+    } finally {
+      setDeleteLoading(false)
     }
   }
+
+  if (!SETTINGS_SECTIONS.includes(section)) {
+    return <Navigate to="/settings/profile" replace />
+  }
+
+  const activeTab = section
+
+  const tabClass = ({ isActive }) =>
+    `px-4 py-2 font-medium ${
+      isActive
+        ? 'border-b-2 border-primary-600 text-primary-600'
+        : 'text-gray-600 hover:text-gray-900'
+    }`
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -95,36 +130,15 @@ const Settings = () => {
       )}
 
       <div className="flex space-x-4 border-b">
-        <button
-          onClick={() => setActiveTab('profile')}
-          className={`px-4 py-2 font-medium ${
-            activeTab === 'profile'
-              ? 'border-b-2 border-primary-600 text-primary-600'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
+        <NavLink to="/settings/profile" className={tabClass} end>
           Profile
-        </button>
-        <button
-          onClick={() => setActiveTab('security')}
-          className={`px-4 py-2 font-medium ${
-            activeTab === 'security'
-              ? 'border-b-2 border-primary-600 text-primary-600'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
+        </NavLink>
+        <NavLink to="/settings/security" className={tabClass}>
           Security
-        </button>
-        <button
-          onClick={() => setActiveTab('data')}
-          className={`px-4 py-2 font-medium ${
-            activeTab === 'data'
-              ? 'border-b-2 border-primary-600 text-primary-600'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
+        </NavLink>
+        <NavLink to="/settings/data" className={tabClass}>
           Data
-        </button>
+        </NavLink>
       </div>
 
       {activeTab === 'profile' && (
@@ -232,11 +246,82 @@ const Settings = () => {
           <div className="card border-red-200">
             <h2 className="text-xl font-semibold text-red-600 mb-4">Danger Zone</h2>
             <p className="text-gray-600 mb-4">
-              Once you delete your account, there is no going back. You have 30 days to recover your account.
+              Account deletion is a soft delete: your account is deactivated first. You have 30 days to recover it
+              before it is permanently removed.
             </p>
-            <button onClick={handleDeleteAccount} className="btn btn-danger">
+            <button
+              type="button"
+              onClick={() => setDeleteModalOpen(true)}
+              className="btn btn-danger"
+            >
               Delete Account
             </button>
+          </div>
+        </div>
+      )}
+
+      {deleteModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="presentation"
+        >
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/50"
+            aria-label="Close dialog"
+            disabled={deleteLoading}
+            onClick={() => !deleteLoading && setDeleteModalOpen(false)}
+          />
+          <div
+            className="relative z-10 w-full max-w-md rounded-xl bg-white p-6 shadow-xl ring-1 ring-black/5"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-account-title"
+            aria-describedby="delete-account-desc"
+          >
+            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-red-600">
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+                aria-hidden
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+            </div>
+            <h2 id="delete-account-title" className="text-lg font-semibold text-gray-900">
+              Delete your account?
+            </h2>
+            <p id="delete-account-desc" className="mt-2 text-sm text-gray-600">
+              This is a soft delete: your account is deactivated and your data is scheduled for removal. You can
+              recover your account within <span className="font-medium text-gray-800">30 days</span> using the
+              recovery link we send to your email. After that window, your account and data are permanently removed
+              (hard delete).
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
+              <button
+                type="button"
+                className="btn btn-secondary w-full sm:w-auto"
+                disabled={deleteLoading}
+                onClick={() => setDeleteModalOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger w-full sm:w-auto"
+                disabled={deleteLoading}
+                onClick={confirmDeleteAccount}
+              >
+                {deleteLoading ? 'Deleting…' : 'Yes, delete my account'}
+              </button>
+            </div>
           </div>
         </div>
       )}

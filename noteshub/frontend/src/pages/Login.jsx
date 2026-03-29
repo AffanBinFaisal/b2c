@@ -1,14 +1,23 @@
-import { useState, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useState, useRef, useEffect } from 'react'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 const Login = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [info, setInfo] = useState('')
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+
+  useEffect(() => {
+    if (location.state?.registered && location.state?.message) {
+      setInfo(location.state.message)
+      navigate(location.pathname, { replace: true, state: {} })
+    }
+  }, [location, navigate])
   const userHasEditedRef = useRef(false)
 
   const handleSubmit = async (e) => {
@@ -61,6 +70,12 @@ const Login = () => {
         <div className="bg-white rounded-lg shadow-xl p-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Sign In</h2>
 
+          {info && (
+            <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-sm">
+              {info}
+            </div>
+          )}
+
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
               {error}
@@ -106,6 +121,15 @@ const Login = () => {
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
+
+          <div className="mt-4 flex flex-col sm:flex-row sm:justify-center sm:gap-4 text-center text-sm">
+            <Link to="/forgot-password" className="text-primary-600 hover:text-primary-700 font-medium">
+              Forgot password?
+            </Link>
+            <Link to="/recover-account" className="text-gray-600 hover:text-gray-800">
+              Recover deleted account
+            </Link>
+          </div>
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
