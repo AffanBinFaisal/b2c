@@ -2,8 +2,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from './context/AuthContext'
 import { NotesProvider } from './context/NotesContext'
 import { ToastProvider } from './context/ToastContext'
-import PrivateRoute from './components/PrivateRoute'
-import Layout from './components/Layout'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import ForgotPassword from './pages/ForgotPassword'
@@ -19,6 +17,7 @@ import Collections from './pages/Collections'
 import Search from './pages/Search'
 import Settings from './pages/Settings'
 import ErrorBoundary from './components/ErrorBoundary'
+import AuthLandingGate from './components/AuthLandingGate'
 
 function App() {
   return (
@@ -35,7 +34,7 @@ function App() {
                 <Route path="/verify-email" element={<VerifyEmail />} />
                 <Route path="/recover-account" element={<RecoverAccount />} />
 
-                <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
+                <Route path="/" element={<AuthLandingGate />}>
                   <Route index element={<Dashboard />} />
                   <Route path="notes" element={<AllNotes />} />
                   <Route path="notes/trash" element={<TrashNotes />} />

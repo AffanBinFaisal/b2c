@@ -158,6 +158,8 @@ const Settings = () => {
               onChange={(e) => setName(e.target.value)}
               className="input"
               required
+              minLength={2}
+              maxLength={100}
             />
           </div>
 

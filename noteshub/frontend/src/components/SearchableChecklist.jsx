@@ -77,7 +77,7 @@ const SearchableChecklist = ({
                     key={it._id}
                     htmlFor={cid}
                     className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors ${
-                      checked ? 'bg-primary-50/80' : 'hover:bg-gray-50'
+                      checked ? 'bg-emerald-500/20 hover:bg-emerald-500/25' : 'hover:bg-gray-50'
                     }`}
                   >
                     <input
@@ -87,7 +87,7 @@ const SearchableChecklist = ({
                       onChange={() => toggle(it._id)}
                       className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 shrink-0"
                     />
-                    <span className={`text-sm flex-1 ${checked ? 'font-medium text-gray-900' : 'text-gray-700'}`}>
+                    <span className={`text-sm flex-1 ${checked ? 'font-medium text-white' : 'text-gray-700'}`}>
                       {it.name}
                     </span>
                   </label>
