@@ -2,12 +2,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { notesAPI } from '../services/api'
 import { useNotes } from '../context/NotesContext'
+import { useToast } from '../context/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 
 const NoteDetail = () => {
   const { id } = useParams()
   const navigate = useNavigate()
   const { deleteNote, togglePin, collections, tags, fetchCollections, fetchTags } = useNotes()
+  const { showToast } = useToast()
   const [note, setNote] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -63,6 +65,16 @@ const NoteDetail = () => {
     loadNote()
   }
 
+  const handleShare = async () => {
+    const url = window.location.href
+    try {
+      await navigator.clipboard.writeText(url)
+      showToast('Link copied to clipboard.')
+    } catch {
+      showToast('Could not copy automatically. Copy the URL from the address bar.')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center py-12">
@@ -110,16 +122,16 @@ const NoteDetail = () => {
             {error}
           </div>
         )}
-        <div className="flex items-start justify-between mb-6">
-          <div className="flex items-center space-x-3">
-            <h1 className="text-3xl font-bold text-gray-900">{note.title}</h1>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 break-words">{note.title}</h1>
             {note.isPinned && (
-              <svg className="w-6 h-6 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="w-6 h-6 text-yellow-500 shrink-0" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
               </svg>
             )}
           </div>
-          <div className="flex space-x-2">
+          <div className="flex flex-wrap gap-2 shrink-0">
             <button
               type="button"
               onClick={handleTogglePin}
@@ -133,6 +145,9 @@ const NoteDetail = () => {
             <Link to={`/notes/${id}/edit`} className="btn btn-secondary">
               Edit
             </Link>
+            <button type="button" onClick={handleShare} className="btn btn-secondary" title="Copy link to this note">
+              Share
+            </button>
             <button type="button" onClick={() => setDeleteOpen(true)} className="btn btn-danger">
               Delete
             </button>

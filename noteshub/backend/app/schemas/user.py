@@ -8,7 +8,7 @@ class UserRegister(BaseModel):
     """User registration schema"""
     email: EmailStr
     password: str
-    name: str
+    name: str = Field(min_length=2, max_length=100)
 
     @field_validator('password')
     @classmethod
@@ -19,13 +19,6 @@ class UserRegister(BaseModel):
             raise ValueError('Password must contain at least one number')
         if not re.search(r'[!@#$%^&*(),.?":{}|<>]', v):
             raise ValueError('Password must contain at least one special character')
-        return v
-
-    @field_validator('name')
-    @classmethod
-    def validate_name(cls, v):
-        if len(v) < 2:
-            raise ValueError('Name must be at least 2 characters')
         return v
 
 
@@ -51,15 +44,8 @@ class UserResponse(BaseModel):
 
 class UserUpdate(BaseModel):
     """User update schema"""
-    name: Optional[str] = None
+    name: Optional[str] = Field(default=None, min_length=2, max_length=100)
     preferences: Optional[dict] = None
-
-    @field_validator("name")
-    @classmethod
-    def validate_name(cls, v):
-        if v is not None and len(v) < 2:
-            raise ValueError("Name must be at least 2 characters")
-        return v
 
 
 class PasswordChange(BaseModel):

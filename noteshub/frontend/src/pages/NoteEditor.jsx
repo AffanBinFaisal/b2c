@@ -4,6 +4,7 @@ import { useNotes } from '../context/NotesContext'
 import { useToast } from '../context/ToastContext'
 import { notesAPI } from '../services/api'
 import SearchableChecklist from '../components/SearchableChecklist'
+import TagAutocomplete from '../components/TagAutocomplete'
 
 const NoteEditor = () => {
   const { id } = useParams()
@@ -22,8 +23,6 @@ const NoteEditor = () => {
   const [error, setError] = useState('')
   const [showCollectionModal, setShowCollectionModal] = useState(false)
   const [newCollectionName, setNewCollectionName] = useState('')
-  const [newTagInput, setNewTagInput] = useState('')
-  const [tagSaving, setTagSaving] = useState(false)
 
   useEffect(() => {
     fetchCollections()
@@ -84,25 +83,15 @@ const NoteEditor = () => {
     }
   }
 
-  const handleNewTagKeyDown = async (e) => {
-    if (e.key !== 'Enter') return
-    e.preventDefault()
-    const name = newTagInput.trim()
-    if (!name || tagSaving) return
+  const handleCreateTag = async (name) => {
     setError('')
-    setTagSaving(true)
     const result = await createTag(name)
-    setTagSaving(false)
-    if (result.success && result.data?._id) {
-      setNewTagInput('')
-      setFormData((prev) => ({
-        ...prev,
-        tagIds: prev.tagIds.includes(result.data._id) ? prev.tagIds : [...prev.tagIds, result.data._id],
-      }))
+    if (result.success) {
       showToast('Tag added to this note.')
-    } else if (!result.success) {
-      setError(result.error)
+    } else {
+      setError(result.error || 'Failed to create tag')
     }
+    return result
   }
 
   return (
@@ -176,36 +165,18 @@ const NoteEditor = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
-              {tags.length === 0 ? (
-                <p className="text-sm text-gray-500 mb-2">No tags yet. Add a new tag below.</p>
-              ) : (
-                <SearchableChecklist
-                  label=""
-                  items={tags}
-                  value={formData.tagIds}
-                  onChange={(ids) => setFormData((prev) => ({ ...prev, tagIds: ids }))}
-                  searchPlaceholder="Search tags…"
-                  emptyMessage="No tags match your search."
-                  idPrefix="note-tag"
-                  hint="Optional. Select any tags that apply."
-                />
-              )}
-              <div className="mt-3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">New custom tag</label>
-                <input
-                  type="text"
-                  value={newTagInput}
-                  onChange={(e) => setNewTagInput(e.target.value)}
-                  onKeyDown={handleNewTagKeyDown}
-                  className="input"
-                  placeholder="Type a name and press Enter"
-                  maxLength={50}
-                  disabled={tagSaving}
-                  autoComplete="off"
-                />
-                <p className="mt-1 text-xs text-gray-500">Lowercase letters, numbers, and hyphens (1–50 characters).</p>
-              </div>
+              <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="note-tags-combo">
+                Tags
+              </label>
+              <TagAutocomplete
+                inputId="note-tags-combo"
+                tags={tags}
+                value={formData.tagIds}
+                onChange={(ids) => setFormData((prev) => ({ ...prev, tagIds: ids }))}
+                onCreateTag={handleCreateTag}
+                disabled={loading}
+                hint="Optional. Search to pick existing tags or type a new tag name and press Enter."
+              />
             </div>
 
             <div className="flex items-center">
